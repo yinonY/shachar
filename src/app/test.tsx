@@ -1,21 +1,24 @@
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Brightness from 'expo-brightness';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
-  Vibration,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    Vibration,
+    View,
 } from 'react-native';
 
 import { DEFAULT_WAKE_SETTINGS, getWakeState, type WakePhase } from '@/wake/engine';
+import * as AlarmScheduler from '@dawn/alarm-scheduler';
+import { DEFAULT_PREFERENCES, getWakePreferences } from '@/storage/wake-data';
 
 const TEST_SETTINGS = {
   ...DEFAULT_WAKE_SETTINGS,
@@ -33,18 +36,57 @@ const phaseLabels: Record<WakePhase, string> = {
   waking: 'Wake time',
   ringing: 'Time to rise',
 };
+const hebrewPhaseLabels: Record<WakePhase, string> = {
+  idle: 'מוכנים כשתהיו',
+  sunrise: 'האור מתחיל להגיע',
+  birdsong: 'ציוץ הבוקר מצטרף',
+  ambience: 'החדר מתעורר לאט',
+  waking: 'הגיע הזמן לקום',
+  ringing: 'בוקר טוב',
+};
 
 export default function WakeTestScreen() {
+  const params = useLocalSearchParams<{
+    mode?: string;
+    alarmId?: string;
+    wakeAt?: string;
+    sunriseMinutes?: string;
+    ringDelayMinutes?: string;
+    label?: string;
+  }>();
   const birds = useAudioPlayer(require('@/assets/audio/birdsong.wav'));
+  const rain = useAudioPlayer(require('@/assets/audio/rain.wav'));
+  const tone = useAudioPlayer(require('@/assets/audio/tone.wav'));
   const ambience = useAudioPlayer(require('@/assets/audio/ambience.wav'));
   const alarm = useAudioPlayer(require('@/assets/audio/alarm.wav'));
-  const [wakeAt, setWakeAt] = useState<number | null>(null);
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [wakeAt, setWakeAt] = useState<number | null>(() =>
+    params.mode === 'alarm' && params.wakeAt && Number.isFinite(Number(params.wakeAt))
+      ? Number(params.wakeAt)
+      : null,
+  );
   const [now, setNow] = useState(0);
   const [originalBrightness, setOriginalBrightness] = useState<number | null>(null);
   const [effectError, setEffectError] = useState<string | null>(null);
   const originalBrightnessRef = useRef<number | null>(null);
+  const alarmMode = params.mode === 'alarm' && Boolean(params.alarmId);
+  const settings = alarmMode
+    ? {
+        ...DEFAULT_WAKE_SETTINGS,
+        sunriseMinutes: preferences.sunriseMinutes,
+        birdsongMinutes: preferences.birdsongMinutes,
+        ambienceMinutes: preferences.ambienceMinutes,
+        ringDelayMinutes: preferences.ringDelayMinutes,
+      }
+    : TEST_SETTINGS;
   const running = wakeAt !== null;
-  const wakeState = running && wakeAt !== null ? getWakeState(now, wakeAt, TEST_SETTINGS) : null;
+  const wakeState = running && wakeAt !== null ? getWakeState(now, wakeAt, settings) : null;
+  const gentleSound = preferences.sound === 'rain' ? rain : preferences.sound === 'tone' ? tone : birds;
+  const labels = preferences.language === 'he' ? hebrewPhaseLabels : phaseLabels;
+
+  useEffect(() => {
+    void getWakePreferences().then(setPreferences);
+  }, []);
 
   useEffect(() => {
     void setAudioModeAsync({
@@ -52,17 +94,29 @@ export default function WakeTestScreen() {
       shouldPlayInBackground: true,
       interruptionMode: 'doNotMix',
     });
+    void Brightness.getBrightnessAsync().then((value) => {
+      originalBrightnessRef.current = value;
+      setOriginalBrightness(value);
+    }).catch(() => undefined);
     return () => {
       deactivateKeepAwake(WAKE_TEST_TAG);
       Vibration.cancel();
       birds.pause();
+      rain.pause();
+      tone.pause();
       ambience.pause();
       alarm.pause();
       if (originalBrightnessRef.current !== null) {
         void Brightness.setBrightnessAsync(originalBrightnessRef.current).catch(() => undefined);
       }
     };
-  }, [alarm, ambience, birds]);
+  }, [alarm, ambience, birds, rain, tone]);
+
+  useEffect(() => {
+    if (alarmMode && wakeAt !== null) {
+      void activateKeepAwakeAsync(WAKE_TEST_TAG);
+    }
+  }, [alarmMode, wakeAt]);
 
   useEffect(() => {
     if (!running) return;
@@ -73,6 +127,8 @@ export default function WakeTestScreen() {
   useEffect(() => {
     if (!wakeState) {
       birds.pause();
+      rain.pause();
+      tone.pause();
       ambience.pause();
       alarm.pause();
       return;
@@ -85,11 +141,11 @@ export default function WakeTestScreen() {
       if (volume === 0 && player.playing) player.pause();
     };
 
-    updatePlayer(birds, wakeState.birdsongVolume);
+    updatePlayer(gentleSound, wakeState.birdsongVolume);
     updatePlayer(ambience, wakeState.ambienceVolume);
     updatePlayer(alarm, wakeState.ringVolume);
     void Brightness.setBrightnessAsync(wakeState.brightness).catch(() => undefined);
-  }, [alarm, ambience, birds, wakeState]);
+  }, [alarm, ambience, birds, gentleSound, rain, tone, wakeState]);
 
   useEffect(() => {
     if (!wakeState?.vibrationIntervalMs) {
@@ -132,8 +188,23 @@ export default function WakeTestScreen() {
     setWakeAt(null);
     deactivateKeepAwake(WAKE_TEST_TAG);
     Vibration.cancel();
+    if (alarmMode && params.alarmId) {
+      await AlarmScheduler.dismissAlarm(params.alarmId).catch(() => undefined);
+    }
     if (originalBrightness !== null) {
       await Brightness.setBrightnessAsync(originalBrightness).catch(() => undefined);
+    }
+  }
+
+  async function snooze() {
+    if (params.alarmId) {
+      await AlarmScheduler.snoozeAlarm(params.alarmId, 9);
+      setWakeAt(null);
+      deactivateKeepAwake(WAKE_TEST_TAG);
+      Vibration.cancel();
+      if (originalBrightness !== null) {
+        await Brightness.setBrightnessAsync(originalBrightness).catch(() => undefined);
+      }
     }
   }
 
@@ -145,44 +216,58 @@ export default function WakeTestScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.eyebrow}>DAWN / SOUND CHECK</Text>
+            <Text style={styles.eyebrow}>{preferences.language === 'he' ? 'DAWN / בדיקת רצף' : 'DAWN / SOUND CHECK'}</Text>
             <View style={[styles.statusDot, running && styles.statusDotActive]} />
           </View>
 
-          <Text style={styles.title}>{running ? phaseLabels[wakeState?.phase ?? 'idle'] : 'Try the morning, now.'}</Text>
+          <Text style={[styles.title, preferences.language === 'he' && styles.rtl]}>{running ? labels[wakeState?.phase ?? 'idle'] : preferences.language === 'he' ? 'נסו את הבוקר, עכשיו.' : 'Try the morning, now.'}</Text>
           <Text style={styles.description}>
             {running
-              ? 'The sequence runs quickly so you can check each layer.'
-              : 'A one-minute preview of light, birdsong, ambience, and the final alarm.'}
+              ? alarmMode
+                ? (params.label || (preferences.language === 'he' ? 'רצף ההתעוררות התחיל.' : 'Your wake sequence is underway.'))
+                : preferences.language === 'he' ? 'הרצף מתקדם במהירות כדי לבדוק כל שלב.' : 'The sequence runs quickly so you can check each layer.'
+              : preferences.language === 'he' ? 'תצוגה מקדימה של אור, צליל, רטט וצלצול.' : 'A one-minute preview of light, birdsong, ambience, and the final alarm.'}
           </Text>
 
           <View style={styles.sequence}>
-            <SequenceRow label="Sunrise" value={wakeState?.brightness ?? 0} color="#F1B477" />
-            <SequenceRow label="Birdsong" value={(wakeState?.birdsongVolume ?? 0) / 0.35} color="#9DC9A9" />
-            <SequenceRow label="Ambience" value={(wakeState?.ambienceVolume ?? 0) / 0.25} color="#91B5BB" />
-            <SequenceRow label="Final alarm" value={wakeState?.ringVolume ?? 0} color="#E77E57" />
+            <SequenceRow label={preferences.language === 'he' ? 'זריחה' : 'Sunrise'} value={wakeState?.brightness ?? 0} color="#F1B477" />
+            <SequenceRow label={preferences.language === 'he' ? 'צליל' : preferences.sound} value={(wakeState?.birdsongVolume ?? 0) / 0.35} color="#9DC9A9" />
+            <SequenceRow label={preferences.language === 'he' ? 'אווירה' : 'Ambience'} value={(wakeState?.ambienceVolume ?? 0) / 0.25} color="#91B5BB" />
+            <SequenceRow label={preferences.language === 'he' ? 'צלצול סופי' : 'Final alarm'} value={wakeState?.ringVolume ?? 0} color="#E77E57" />
           </View>
 
           {running ? (
             <View style={styles.clock}>
-              <Text style={styles.clockLabel}>WAKE TIME IN</Text>
+              <Text style={styles.clockLabel}>{preferences.language === 'he' ? 'ההתעוררות בעוד' : 'WAKE TIME IN'}</Text>
               <Text style={styles.clockValue}>{`${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}</Text>
-              <Text style={styles.phase}>{wakeState ? phaseLabels[wakeState.phase] : ''}</Text>
+              <Text style={styles.phase}>{wakeState ? labels[wakeState.phase] : ''}</Text>
             </View>
           ) : (
             <View style={styles.noteRow}>
               <Text style={styles.noteMark}>i</Text>
-              <Text style={styles.noteText}>Your saved wake settings are not changed by this preview.</Text>
+              <Text style={styles.noteText}>{preferences.language === 'he' ? 'התצוגה לא משנה את הגדרות ההתעוררות.' : 'Your saved wake settings are not changed by this preview.'}</Text>
             </View>
           )}
 
           {effectError && <Text style={styles.error}>{effectError}</Text>}
 
+          {alarmMode && running && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void snooze()}
+              style={({ pressed }) => [styles.snoozeAction, pressed && styles.pressed]}>
+              <Text style={styles.snoozeText}>{preferences.language === 'he' ? 'נודניק 9 דקות' : 'Snooze 9 minutes'}</Text>
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             onPress={running ? () => void stopTest() : () => void startTest()}
             style={({ pressed }) => [styles.action, running && styles.stopAction, pressed && styles.pressed]}>
-            <Text style={styles.actionText}>{running ? 'Stop preview' : 'Start one-minute preview'}</Text>
+            <Text style={styles.actionText}>
+              {running
+                ? alarmMode ? (preferences.language === 'he' ? 'כיבוי השעון' : 'Dismiss alarm') : (preferences.language === 'he' ? 'עצירת התצוגה' : 'Stop preview')
+                : preferences.language === 'he' ? 'התחלת תצוגה של דקה' : 'Start one-minute preview'}
+            </Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -203,6 +288,7 @@ function SequenceRow({ label, value, color }: { label: string; value: number; co
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#14251F' },
+  rtl: { textAlign: 'right', writingDirection: 'rtl' },
   safeArea: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 26, paddingTop: 16, paddingBottom: 26 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -226,6 +312,8 @@ const styles = StyleSheet.create({
   error: { color: '#F1A18A', fontSize: 12, marginTop: 16 },
   action: { height: 54, borderRadius: 6, backgroundColor: '#D87845', alignItems: 'center', justifyContent: 'center', marginTop: 'auto', marginBottom: 8 },
   stopAction: { backgroundColor: '#506359' },
+  snoozeAction: { height: 48, borderRadius: 6, borderColor: '#72877B', borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 16, marginBottom: 8 },
+  snoozeText: { color: '#E8ECDD', fontSize: 14, fontWeight: '600' },
   actionText: { color: '#FFF8EA', fontSize: 14, fontWeight: '700' },
   pressed: { opacity: 0.82 },
 });

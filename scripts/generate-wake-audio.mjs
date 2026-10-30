@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { Buffer } from 'node:buffer';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const sampleRate = 22_050;
@@ -49,6 +49,25 @@ writeWave('ambience.wav', 8, (time) => {
     Math.sin(2 * Math.PI * 174.61 * time) * 0.15 +
     Math.sin(2 * Math.PI * 220 * time) * 0.1 +
     Math.sin(2 * Math.PI * 261.63 * time) * 0.06
+  );
+});
+
+writeWave('rain.wav', 8, (time) => {
+  const rain = Math.sin(2 * Math.PI * 173 * time) * 0.16 +
+    Math.sin(2 * Math.PI * 281 * time) * 0.12 +
+    Math.sin(2 * Math.PI * 397 * time) * 0.09 +
+    Math.sin(2 * Math.PI * 613 * time) * 0.06 +
+    Math.sin(2 * Math.PI * 997 * time) * 0.04;
+  const patter = Math.sin(2 * Math.PI * 1_731 * time) * Math.sin(2 * Math.PI * 0.31 * time) * 0.05;
+  return rain + patter;
+});
+
+writeWave('tone.wav', 8, (time) => {
+  const swell = 0.65 + 0.35 * Math.sin((2 * Math.PI * time) / 8);
+  return swell * (
+    Math.sin(2 * Math.PI * 220 * time) * 0.17 +
+    Math.sin(2 * Math.PI * 277.18 * time) * 0.1 +
+    Math.sin(2 * Math.PI * 329.63 * time) * 0.07
   );
 });
 
