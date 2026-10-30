@@ -32,6 +32,9 @@ export default function AppTabs() {
           <TabTrigger name="test" href="/test" asChild>
             <TabButton>Wake test</TabButton>
           </TabTrigger>
+          <TabTrigger name="reliability" href="/reliability" asChild>
+            <TabButton>Device check</TabButton>
+          </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Explore</TabButton>
           </TabTrigger>

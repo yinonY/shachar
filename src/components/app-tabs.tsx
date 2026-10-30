@@ -23,6 +23,10 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Wake test</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="reliability">
+        <NativeTabs.Trigger.Label>Device check</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
