@@ -2,8 +2,8 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import * as AlarmScheduler from '@dawn/alarm-scheduler';
 import { getWakeAlarms, getWakePreferences, saveWakeAlarms, type WakeAlarm, type WakePreferences } from '@/storage/wake-data';
+import * as AlarmScheduler from '@dawn/alarm-scheduler';
 
 const COLORS = { background: '#F6F4ED', ink: '#1C302B', muted: '#71817A', line: '#DDE2D9', accent: '#D87845', white: '#FFFDF7' };
 

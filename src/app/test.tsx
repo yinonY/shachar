@@ -16,9 +16,9 @@ import {
     View,
 } from 'react-native';
 
+import { DEFAULT_PREFERENCES, getWakePreferences } from '@/storage/wake-data';
 import { DEFAULT_WAKE_SETTINGS, getWakeState, type WakePhase } from '@/wake/engine';
 import * as AlarmScheduler from '@dawn/alarm-scheduler';
-import { DEFAULT_PREFERENCES, getWakePreferences } from '@/storage/wake-data';
 
 const TEST_SETTINGS = {
   ...DEFAULT_WAKE_SETTINGS,

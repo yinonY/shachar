@@ -1,3 +1,4 @@
+import { usePathname } from 'expo-router';
 import {
     TabList,
     TabListProps,
@@ -7,7 +8,6 @@ import {
     TabTriggerSlotProps,
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
-import { usePathname } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, useColorScheme, View } from 'react-native';
