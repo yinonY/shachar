@@ -73,15 +73,16 @@ export default function WakeTestScreen() {
   const settings = alarmMode
     ? {
         ...DEFAULT_WAKE_SETTINGS,
-        sunriseMinutes: preferences.sunriseMinutes,
+        sunriseMinutes: Number(params.sunriseMinutes ?? preferences.sunriseMinutes),
         birdsongMinutes: preferences.birdsongMinutes,
         ambienceMinutes: preferences.ambienceMinutes,
-        ringDelayMinutes: preferences.ringDelayMinutes,
+        ringDelayMinutes: Number(params.ringDelayMinutes ?? preferences.ringDelayMinutes),
       }
     : TEST_SETTINGS;
   const running = wakeAt !== null;
   const wakeState = running && wakeAt !== null ? getWakeState(now, wakeAt, settings) : null;
   const gentleSound = preferences.sound === 'rain' ? rain : preferences.sound === 'tone' ? tone : birds;
+  const lockScreenPlayer = wakeState?.shouldRing ? alarm : gentleSound;
   const labels = preferences.language === 'he' ? hebrewPhaseLabels : phaseLabels;
 
   useEffect(() => {
@@ -123,6 +124,15 @@ export default function WakeTestScreen() {
     const timer = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, [running]);
+
+  useEffect(() => {
+    if (!running) return;
+    lockScreenPlayer.setActiveForLockScreen(true, {
+      title: 'Dawn Alarm',
+      artist: 'Wake sequence',
+    });
+    return () => lockScreenPlayer.setActiveForLockScreen(false);
+  }, [lockScreenPlayer, running]);
 
   useEffect(() => {
     if (!wakeState) {

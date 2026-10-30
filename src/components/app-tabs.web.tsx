@@ -8,9 +8,12 @@ import {
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
 import { usePathname } from 'expo-router';
+import type { ComponentProps } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { getWakePreferences } from '@/storage/wake-data';
 
 import { ExternalLink } from './external-link';
 import { ThemedText } from './themed-text';
@@ -18,25 +21,34 @@ import { ThemedView } from './themed-view';
 
 export default function AppTabs() {
   const pathname = usePathname();
+  const [hebrew, setHebrew] = useState(false);
+
+  useEffect(() => {
+    void getWakePreferences().then((preferences) => setHebrew(preferences.language === 'he'));
+  }, [pathname]);
+
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList style={pathname === '/test' ? styles.hiddenTabList : undefined}>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+            <TabButton>{hebrew ? 'בית' : 'Home'}</TabButton>
           </TabTrigger>
           <TabTrigger name="alarms" href="/alarms" asChild>
-            <TabButton>Alarms</TabButton>
+            <TabButton>{hebrew ? 'התעוררויות' : 'Alarms'}</TabButton>
           </TabTrigger>
           <TabTrigger name="test" href="/test" asChild>
-            <TabButton>Wake test</TabButton>
+            <TabButton>{hebrew ? 'בדיקה' : 'Wake test'}</TabButton>
           </TabTrigger>
           <TabTrigger name="reliability" href="/reliability" asChild>
-            <TabButton>Device check</TabButton>
+            <TabButton>{hebrew ? 'בדיקת מכשיר' : 'Device check'}</TabButton>
+          </TabTrigger>
+          <TabTrigger name="settings" href="/settings" asChild>
+            <TabButton>{hebrew ? 'הגדרות' : 'Settings'}</TabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+            <TabButton>{hebrew ? 'גילוי' : 'Explore'}</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -46,7 +58,7 @@ export default function AppTabs() {
 
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
+    <Pressable {...(props as ComponentProps<typeof Pressable>)} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
@@ -63,7 +75,7 @@ export function CustomTabList(props: TabListProps) {
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
   return (
-    <View {...props} style={styles.tabListContainer}>
+    <View {...props} style={[styles.tabListContainer, props.style]}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
           Expo Starter

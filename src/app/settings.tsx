@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import * as AlarmScheduler from '@dawn/alarm-scheduler';
 import { DEFAULT_PREFERENCES, getWakeAlarms, getWakePreferences, saveWakePreferences, type WakePreferences } from '@/storage/wake-data';
@@ -41,7 +41,7 @@ export default function SettingsScreen() {
   const languageText = hebrew ? 'עברית ומימין לשמאל' : 'Hebrew and right-to-left';
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, hebrew && styles.rtlContainer]}>
         <Text style={styles.kicker}>DAWN / SETTINGS</Text>
         <Text style={styles.title}>{hebrew ? 'בוקר, בדרך שלך.' : 'Make it yours.'}</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/reliability')} style={styles.deviceCheck}>
@@ -50,16 +50,16 @@ export default function SettingsScreen() {
 
         <Text style={[styles.sectionTitle, hebrew && styles.rtl]}>{hebrew ? 'רצף ההתעוררות' : 'Wake sequence'}</Text>
         <View style={styles.group}>
-          <NumberRow key={`sunrise-${preferences.sunriseMinutes}`} label={hebrew ? 'זריחה, דקות' : 'Sunrise, minutes'} value={preferences.sunriseMinutes} maximum={180} onChange={(value) => update('sunriseMinutes', value)} />
-          <NumberRow key={`birdsong-${preferences.birdsongMinutes}`} label={hebrew ? 'שירת ציפורים, דקות לפני' : 'Birdsong, minutes before'} value={preferences.birdsongMinutes} maximum={180} onChange={(value) => update('birdsongMinutes', value)} />
-          <NumberRow key={`ambience-${preferences.ambienceMinutes}`} label={hebrew ? 'אווירה, דקות לפני' : 'Ambience, minutes before'} value={preferences.ambienceMinutes} maximum={180} onChange={(value) => update('ambienceMinutes', value)} />
-          <NumberRow key={`ring-${preferences.ringDelayMinutes}`} label={hebrew ? 'צלצול סופי, דקות אחרי' : 'Final ring, minutes after'} value={preferences.ringDelayMinutes} maximum={120} onChange={(value) => update('ringDelayMinutes', value)} />
+          <NumberRow key={`sunrise-${preferences.sunriseMinutes}`} hebrew={hebrew} label={hebrew ? 'זריחה, דקות' : 'Sunrise, minutes'} value={preferences.sunriseMinutes} maximum={180} onChange={(value) => update('sunriseMinutes', value)} />
+          <NumberRow key={`birdsong-${preferences.birdsongMinutes}`} hebrew={hebrew} label={hebrew ? 'שירת ציפורים, דקות לפני' : 'Birdsong, minutes before'} value={preferences.birdsongMinutes} maximum={180} onChange={(value) => update('birdsongMinutes', value)} />
+          <NumberRow key={`ambience-${preferences.ambienceMinutes}`} hebrew={hebrew} label={hebrew ? 'אווירה, דקות לפני' : 'Ambience, minutes before'} value={preferences.ambienceMinutes} maximum={180} onChange={(value) => update('ambienceMinutes', value)} />
+          <NumberRow key={`ring-${preferences.ringDelayMinutes}`} hebrew={hebrew} label={hebrew ? 'צלצול סופי, דקות אחרי' : 'Final ring, minutes after'} value={preferences.ringDelayMinutes} maximum={120} onChange={(value) => update('ringDelayMinutes', value)} />
         </View>
 
         <Text style={[styles.sectionTitle, hebrew && styles.rtl]}>{hebrew ? 'צליל ושפה' : 'Sound and language'}</Text>
         <View style={styles.group}>
           <Text style={[styles.rowLabel, hebrew && styles.rtl]}>{hebrew ? 'צליל עדין' : 'Gentle sound'}</Text>
-          <View style={styles.options}>
+          <View style={[styles.options, hebrew && styles.rowRtl]}>
             {(['birds', 'rain', 'tone'] as const).map((sound) => (
               <Pressable key={sound} accessibilityRole="button" accessibilityState={{ selected: preferences.sound === sound }} onPress={() => update('sound', sound)} style={[styles.option, preferences.sound === sound && styles.optionSelected]}>
                 <Text style={[styles.optionText, preferences.sound === sound && styles.optionTextSelected]}>{soundName(sound, hebrew)}</Text>
@@ -67,8 +67,8 @@ export default function SettingsScreen() {
             ))}
           </View>
           <View style={styles.divider} />
-          <View style={styles.languageRow}>
-            <Text style={styles.rowLabel}>{languageText}</Text>
+          <View style={[styles.languageRow, hebrew && styles.rowRtl]}>
+            <Text style={[styles.rowLabel, hebrew && styles.rtl]}>{languageText}</Text>
             <Switch value={hebrew} onValueChange={(value) => update('language', value ? 'he' : 'en')} trackColor={{ true: '#A5B6A6' }} thumbColor={COLORS.ink} />
           </View>
         </View>
@@ -82,11 +82,11 @@ export default function SettingsScreen() {
   );
 }
 
-function NumberRow({ label, value, maximum, onChange }: { label: string; value: number; maximum: number; onChange: (value: number) => void }) {
+function NumberRow({ label, value, maximum, onChange, hebrew }: { label: string; value: number; maximum: number; onChange: (value: number) => void; hebrew: boolean }) {
   const [text, setText] = useState(String(value));
   return (
-    <View style={styles.numberRow}>
-      <Text style={styles.rowLabel}>{label}</Text>
+    <View style={[styles.numberRow, hebrew && styles.rowRtl]}>
+      <Text style={[styles.rowLabel, hebrew && styles.rtl]}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         keyboardType="number-pad"
@@ -120,6 +120,8 @@ const styles = StyleSheet.create({
   deviceCheckText: { color: COLORS.accent, fontSize: 12, fontWeight: '700' },
   sectionTitle: { color: COLORS.ink, fontFamily: 'serif', fontSize: 21, marginTop: 22, marginBottom: 10 },
   rtl: { textAlign: 'right', writingDirection: 'rtl' },
+  rtlContainer: { direction: 'rtl' },
+  rowRtl: { flexDirection: 'row-reverse' },
   group: { backgroundColor: COLORS.white, borderRadius: 7, paddingHorizontal: 15 },
   numberRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.line },
   rowLabel: { color: COLORS.ink, fontSize: 13, flex: 1 },

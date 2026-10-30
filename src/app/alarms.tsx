@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import * as AlarmScheduler from '@dawn/alarm-scheduler';
-import { getWakeAlarms, getWakePreferences, saveWakeAlarms, type WakeAlarm } from '@/storage/wake-data';
+import { getWakeAlarms, getWakePreferences, saveWakeAlarms, type WakeAlarm, type WakePreferences } from '@/storage/wake-data';
 
 const COLORS = { background: '#F6F4ED', ink: '#1C302B', muted: '#71817A', line: '#DDE2D9', accent: '#D87845', white: '#FFFDF7' };
 
@@ -13,20 +13,25 @@ export default function AlarmsScreen() {
   const [label, setLabel] = useState('Wake up');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<WakePreferences['language']>('en');
+  const hebrew = language === 'he';
 
   useEffect(() => {
-    void getWakeAlarms().then(setAlarms).finally(() => setLoading(false));
+    void Promise.all([getWakeAlarms(), getWakePreferences()]).then(([savedAlarms, preferences]) => {
+      setAlarms(savedAlarms);
+      setLanguage(preferences.language);
+    }).finally(() => setLoading(false));
   }, []);
 
   async function addAlarm() {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
-      setError('Enter a time in 24-hour format, such as 06:30.');
+      setError(hebrew ? 'יש להזין שעה בפורמט 24 שעות, למשל 06:30.' : 'Enter a time in 24-hour format, such as 06:30.');
       return;
     }
     setError(null);
     try {
       if (!(await AlarmScheduler.canScheduleExactAlarms())) {
-        Alert.alert('Exact alarms are off', 'Allow exact alarms in Android settings, then add this wake time again.', [
+        Alert.alert(hebrew ? 'שעונים מדויקים כבויים' : 'Exact alarms are off', hebrew ? 'יש לאפשר שעונים מדויקים בהגדרות Android ואז להוסיף שוב.' : 'Allow exact alarms in Android settings, then add this wake time again.', [
           { text: 'Not now', style: 'cancel' },
           { text: 'Open settings', onPress: () => void AlarmScheduler.openExactAlarmSettings() },
         ]);
@@ -38,7 +43,7 @@ export default function AlarmsScreen() {
       if (wakeAt.getTime() <= Date.now()) wakeAt.setDate(wakeAt.getDate() + 1);
       const alarm: WakeAlarm = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        label: label.trim() || 'Wake up',
+        label: label.trim() === 'Wake up' && hebrew ? 'להתעורר' : label.trim() || (hebrew ? 'להתעורר' : 'Wake up'),
         wakeAtMillis: wakeAt.getTime(),
       };
       const preferences = await getWakePreferences();
@@ -47,7 +52,7 @@ export default function AlarmsScreen() {
       await saveWakeAlarms(updated);
       setAlarms(updated);
     } catch {
-      setError('The wake time could not be scheduled. Check Android alarm permissions.');
+      setError(hebrew ? 'לא ניתן לתזמן את ההתעוררות. יש לבדוק את הרשאות Android.' : 'The wake time could not be scheduled. Check Android alarm permissions.');
     }
   }
 
@@ -62,42 +67,42 @@ export default function AlarmsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topline}>
-          <Text style={styles.kicker}>DAWN / YOUR ROUTINE</Text>
+          <Text style={[styles.kicker, hebrew && styles.rtl]}>{hebrew ? 'DAWN / שגרת הבוקר' : 'DAWN / YOUR ROUTINE'}</Text>
         </View>
-        <Text style={styles.title}>{'A softer\nstart.'}</Text>
-        <Text style={styles.subtitle}>Your mornings, gently in motion.</Text>
+        <Text style={[styles.title, hebrew && styles.rtl]}>{hebrew ? 'בוקר רך יותר.' : 'A softer\nstart.'}</Text>
+        <Text style={[styles.subtitle, hebrew && styles.rtl]}>{hebrew ? 'הבקרים שלך, בקצב רגוע.' : 'Your mornings, gently in motion.'}</Text>
 
         <View style={styles.form}>
-          <Text style={styles.formTitle}>SET A WAKE TIME</Text>
-          <View style={styles.fields}>
-            <TextInput accessibilityLabel="Wake time" value={time} onChangeText={setTime} keyboardType="numbers-and-punctuation" maxLength={5} style={styles.timeInput} />
-            <TextInput accessibilityLabel="Alarm label" value={label} onChangeText={setLabel} maxLength={32} style={styles.labelInput} />
+          <Text style={[styles.formTitle, hebrew && styles.rtl]}>{hebrew ? 'בחירת שעת התעוררות' : 'SET A WAKE TIME'}</Text>
+          <View style={[styles.fields, hebrew && styles.fieldsRtl]}>
+            <TextInput accessibilityLabel={hebrew ? 'שעת התעוררות' : 'Wake time'} value={time} onChangeText={setTime} keyboardType="numbers-and-punctuation" maxLength={5} style={styles.timeInput} />
+            <TextInput accessibilityLabel={hebrew ? 'שם ההתראה' : 'Alarm label'} value={label} onChangeText={setLabel} maxLength={32} style={[styles.labelInput, hebrew && styles.rtl]} />
           </View>
           {error && <Text style={styles.error}>{error}</Text>}
           <Pressable accessibilityRole="button" onPress={() => void addAlarm()} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
-            <Text style={styles.addText}>＋  Add wake time</Text>
+            <Text style={styles.addText}>{hebrew ? '＋  הוספת התעוררות' : '＋  Add wake time'}</Text>
           </Pressable>
         </View>
 
         <View style={styles.sectionHeading}>
-          <Text style={styles.sectionTitle}>Upcoming</Text>
+          <Text style={[styles.sectionTitle, hebrew && styles.rtl]}>{hebrew ? 'הקרובות' : 'Upcoming'}</Text>
           <Text style={styles.count}>{String(alarms.length).padStart(2, '0')}</Text>
         </View>
-        {loading ? <Text style={styles.emptyCopy}>Loading local wake times…</Text> : alarms.length === 0 ? (
+        {loading ? <Text style={[styles.emptyCopy, hebrew && styles.rtl]}>{hebrew ? 'טוען התעוררויות שמורות…' : 'Loading local wake times…'}</Text> : alarms.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyMark}>06:30</Text>
-            <Text style={styles.emptyTitle}>Room for a new ritual</Text>
-            <Text style={styles.emptyCopy}>Add a wake time and let the day arrive slowly.</Text>
+            <Text style={[styles.emptyTitle, hebrew && styles.rtl]}>{hebrew ? 'מקום לטקס חדש' : 'Room for a new ritual'}</Text>
+            <Text style={[styles.emptyCopy, hebrew && styles.rtl]}>{hebrew ? 'הוסיפו שעת התעוררות ותנו ליום להגיע לאט.' : 'Add a wake time and let the day arrive slowly.'}</Text>
           </View>
         ) : (
           <View style={styles.alarmList}>
             {alarms.map((alarm) => (
-              <View key={alarm.id} style={styles.alarmRow}>
+              <View key={alarm.id} style={[styles.alarmRow, hebrew && styles.alarmRowRtl]}>
                 <View style={styles.alarmDetails}>
-                  <Text style={styles.alarmTime}>{new Date(alarm.wakeAtMillis).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</Text>
-                  <Text style={styles.alarmLabel}>{alarm.label} · {new Date(alarm.wakeAtMillis).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
+                  <Text style={styles.alarmTime}>{new Date(alarm.wakeAtMillis).toLocaleTimeString(hebrew ? 'he-IL' : 'en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}</Text>
+                  <Text style={[styles.alarmLabel, hebrew && styles.rtl]}>{alarm.label} · {new Date(alarm.wakeAtMillis).toLocaleDateString(hebrew ? 'he-IL' : 'en-GB', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${alarm.label}`} onPress={() => void removeAlarm(alarm)} hitSlop={12}>
+                <Pressable accessibilityRole="button" accessibilityLabel={hebrew ? `הסרת ${alarm.label}` : `Remove ${alarm.label}`} onPress={() => void removeAlarm(alarm)} hitSlop={12}>
                   <Text style={styles.remove}>×</Text>
                 </Pressable>
               </View>
@@ -105,7 +110,7 @@ export default function AlarmsScreen() {
           </View>
         )}
         <Pressable accessibilityRole="button" onPress={() => router.push('/test')} style={styles.testLink}>
-          <Text style={styles.testLinkText}>Preview the wake sequence  ↗</Text>
+          <Text style={styles.testLinkText}>{hebrew ? 'תצוגה מקדימה של ההתעוררות  ↗' : 'Preview the wake sequence  ↗'}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -118,10 +123,12 @@ const styles = StyleSheet.create({
   topline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   kicker: { color: COLORS.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   title: { color: COLORS.ink, fontFamily: 'serif', fontSize: 48, lineHeight: 52, marginTop: 20 },
+  rtl: { textAlign: 'right', writingDirection: 'rtl' },
   subtitle: { color: COLORS.muted, fontSize: 14, marginTop: 8 },
   form: { marginTop: 30, padding: 18, backgroundColor: COLORS.white, borderRadius: 8 },
   formTitle: { color: COLORS.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.3 },
   fields: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
+  fieldsRtl: { flexDirection: 'row-reverse' },
   timeInput: { color: COLORS.ink, fontFamily: 'serif', fontSize: 37, minWidth: 122, paddingVertical: 0 },
   labelInput: { color: COLORS.muted, fontSize: 14, flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.line, paddingVertical: 8 },
   error: { color: '#A23D2A', fontSize: 12, marginTop: 10 },
@@ -137,6 +144,7 @@ const styles = StyleSheet.create({
   emptyCopy: { color: COLORS.muted, fontSize: 12, textAlign: 'center', marginTop: 6 },
   alarmList: { borderTopWidth: 1, borderTopColor: COLORS.line },
   alarmRow: { minHeight: 74, borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' },
+  alarmRowRtl: { flexDirection: 'row-reverse' },
   alarmDetails: { flex: 1 },
   alarmTime: { color: COLORS.ink, fontFamily: 'serif', fontSize: 29, lineHeight: 35 },
   alarmLabel: { color: COLORS.muted, fontSize: 11, marginTop: 2 },
